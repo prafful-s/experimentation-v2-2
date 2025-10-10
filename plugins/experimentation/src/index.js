@@ -990,6 +990,35 @@ export async function loadEager(document, options = {}) {
   ns.experiment = ns.experiments.find((e) => e.type === 'page');
   ns.audience = ns.audiences.find((e) => e.type === 'page');
   ns.campaign = ns.campaigns.find((e) => e.type === 'page');
+ 
+  if (isDebugEnabled) {
+    setupCommunicationLayer(pluginOptions);
+  }
+}
+
+/**
+ * Post-message communication layer for older Universal Editor implementations
+ */
+function setupCommunicationLayer(options) {
+  window.addEventListener('message', async (event) => {
+    if (event.data?.type === 'hlx:experimentation-get-config') {
+      try {
+        const safeClone = JSON.parse(JSON.stringify(window.hlx || window.aem || {}));
+
+        if (options.prodHost) {
+          safeClone.prodHost = options.prodHost;
+        }
+
+        event.source.postMessage({
+          type: 'hlx:experimentation-config',
+          config: safeClone,
+          source: 'engine-post-message-response',
+        }, '*');
+      } catch (error) {
+        console.error('Error handling post-message experimentation request:', error);
+      }
+    }
+  });
 }
 
 export async function loadLazy(document, options = {}) {
@@ -997,26 +1026,4 @@ export async function loadLazy(document, options = {}) {
   if (!isDebugEnabled) {
     return;
   }
-  
-  window.addEventListener('message', async (event) => {
-    if (event.data?.type === 'hlx:experimentation-get-config') {
-      try {
-        const safeClone = JSON.parse(JSON.stringify(window.hlx));
-        if (options.prodHost) {
-          safeClone.prodHost = options.prodHost;
-        }
-        event.source.postMessage(
-          {
-            type: 'hlx:experimentation-config',
-            config: safeClone,
-            source: 'index-js',
-          },
-          '*',
-        );
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error('Error sending hlx config:', e);
-      }
-    }
-  });
 }
